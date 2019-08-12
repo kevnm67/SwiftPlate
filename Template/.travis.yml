@@ -1,0 +1,80 @@
+os: osx
+osx_image: xcode10.2
+rvm: 2.6.0
+
+addons:
+  homebrew:
+    packages:
+    - swiftlint
+    update: true
+
+cache:
+  bundler: true
+  directories:
+    - $HOME/.rvm/
+
+branches:
+  only:
+    - master
+    - develop
+
+env:
+   global:
+     - PROJECT_NAME="{PROJECT}"
+     # Add your code climate reporter ID:
+     - CC_TEST_REPORTER_ID="FIX_ME"
+     # Add your danger API token:
+     - DANGER_GITHUB_API_TOKEN="FIX_ME"
+     - LC_CTYPE=en_US.UTF-8 LANG=en_US.UTF-8
+
+before_install:
+  - gem update --system
+  - gem install bundler
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-darwin-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+
+jobs:
+  include:
+    - &test
+      stage: test
+      name: iOS 11.4
+      env: DESTINATION="OS=11.4,name=iPhone X" SDK="$IOS_SDK"
+      before_script:
+        - "./cc-test-reporter before-build"
+      script:
+        - set -o pipefail
+        - xcodebuild -version -sdk
+        - xcodebuild clean test -project "$PROJECT" -scheme "$SCHEME" -sdk "$SDK" -destination "$DESTINATION" -enableCodeCoverage YES -configuration Debug ONLY_ACTIVE_ARCH=NO CODE_SIGNING_REQUIRED=NO | bundle exec xcpretty -c;
+      after_success:
+        - bundle exec danger
+        - "./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT"
+
+    - <<: *test
+      name: iOS 12.1
+      env: DESTINATION="OS=12.1,name=iPhone X" SDK="$IOS_SDK"
+
+    - <<: *test
+      name: tvOS 12.1
+      env: DESTINATION="OS=12.1,name=Apple TV" SDK="$TVOS_SDK"
+      if: "(commit_message =~ /(@test tvOS)/)"
+
+    - <<: *test
+      name: macOS 12.1
+      env: DESTINATION="macOS" SDK="macosx10.14"
+      if: "(commit_message =~ /(@test macOS)/)"
+
+    - stage: lint
+      name: pod lint
+      if: branch IN (master, develop) AND (type != pull_request)
+      script: bundle exec pod lib lint
+
+    - stage: carthage
+      name: Carthage build
+      if: "(commit_message =~ /(@deploy carthage)/)"
+      script:
+        - carthage build --no-skip-current --configuration Release
+
+stages:
+  - test
+  - lint
+  - carthage

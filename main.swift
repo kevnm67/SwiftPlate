@@ -180,9 +180,11 @@ class StringReplacer {
     func process(filesInFolderWithPath folderPath: String) throws {
         let fileManager = FileManager.default
         let currentFileName = URL.init(fileURLWithPath: #file).lastPathComponent
-
+        
         for itemName in try fileManager.contentsOfDirectory(atPath: folderPath) {
-            if itemName.hasPrefix(".") || itemName == currentFileName {
+            let unknownDotFile = itemName.hasPrefix(".") && itemName != ".travis.yml"
+            
+            if unknownDotFile || itemName == currentFileName {
                 continue
             }
 
@@ -373,8 +375,8 @@ do {
     }
     
     performCommand(description: "Making a local clone of the SwiftPlate repo") {
-        let repositoryURL = arguments.repositoryURL ?? URL(string: "https://github.com/JohnSundell/SwiftPlate.git")!
-        Process().launchBash(withCommand: "git clone \(repositoryURL.absoluteString) '\(gitClonePath)' -q")
+        let repositoryURL = arguments.repositoryURL ?? URL(string: "https://github.com/kevnm67/SwiftPlate.git")!
+        Process().launchBash(withCommand: "git clone -b feature/travis-ci \(repositoryURL.absoluteString) '\(gitClonePath)' -q")
     }
     
     try performCommand(description: "Copying template folder") {
