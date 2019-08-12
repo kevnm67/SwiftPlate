@@ -1,0 +1,84 @@
+# Detecting changed files
+has_source_changes = !git.added_files.grep(/Sources/).empty?
+has_test_changes = !git.modified_files.grep(/Tests/).empty?
+
+###
+### Files to warn if changed:
+###
+
+@GL_DANGER_CI_CD_FILES = ['.travis.yml', 'Dangerfile']
+@GL_DANGER_DEPENDENCY_FILES = ['Gemfile', 'Cartfile', 'Cartfile.private', 'podfile']
+
+# determine if any of the files were modified
+def didModify(files_array)
+	did_modify_files = false
+	files_array.each do |file_name|
+		if git.modified_files.include?(file_name) || git.deleted_files.include?(file_name)
+			did_modify_files = true
+
+			config_files = git.modified_files.select { |path| path.include? file_name }
+
+			message "This PR changes #{ github.html_link(config_files) }"
+		end
+	end
+
+	return did_modify_files
+end
+
+###
+### Warnings
+###
+
+warn('Changes to CI/CD files') if didModify(@GL_DANGER_CI_CD_FILES)
+warn('Changes to dependency related files') if didModify(@GL_DANGER_DEPENDENCY_FILES)
+
+# Make it more obvious that a PR is a work in progress and shouldn't be merged yet
+warn("PR is classed as Work in Progress") if github.pr_title.include? "[WIP]"
+
+warn('Big PR, try to keep changes smaller if you can') if git.lines_of_code > 500
+
+# Don't let testing shortcuts get into master by accident (e.g. fit -> focuses on a single test).
+fail("fit left in tests") if `grep -r "fit Tests/ `.length > 1
+
+# Sometimes it's a README fix, or something like that - which isn't relevant for
+# including in a project's CHANGELOG for example
+not_declared_trivial = !(github.pr_title.downcase.include? "#trivial")
+
+# Changelog entries are required for changes to library files
+no_changelog_entry = !git.modified_files.include?("CHANGELOG.md")
+
+if has_source_changes && no_changelog_entry && not_declared_trivial
+    warn("No changelog entry was found.  Please consider adding one for non-trivial changes.")
+end
+
+if has_source_changes && !has_test_changes
+    warn("Library files were updated without test coverage. Please update or add tests, if needed.")
+end
+
+# Look through all changed Markdown files
+markdown_files = (git.added_files.grep(%r{.*\.md/}) + git.modified_files.grep(%r{.*\.md/}))
+
+unless markdown_files.empty?
+    # Run proselint to lint and check spelling
+    prose.language = "en-us"
+    prose.ignored_words = ["{PROJECT}", "{AUTHOR}", "enum", "enums", "CocoaPods", "pods", "carfile"]
+    prose.ignore_acronyms = true
+    prose.ignore_numbers = true
+    prose.lint_files markdown_files
+    prose.check_spelling markdown_files
+end
+
+###
+### Auto label
+###
+
+if github.pr_title.include? "[WIP]"
+	auto_label.wip=(github.pr_json["number"])
+else
+	auto_label.remove("WIP")
+end
+
+# Run SwiftLint
+swiftlint.verbose = true
+swiftlint.config_file = './.swiftlint.yml'
+swiftlint.lint_files(inline_mode: true, fail_on_error: true)

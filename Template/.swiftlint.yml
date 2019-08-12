@@ -1,0 +1,73 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - Carthage
+  - Pods
+
+disabled_rules:
+  - type_name
+  - identifier_name
+  - trailing_whitespace
+
+opt_in_rules:
+  - anyobject_protocol
+  - attributes
+  - closure_end_indentation
+  - closure_spacing
+  - contains_over_first_not_nil
+  - empty_string
+  - explicit_init
+  - static_operator
+  - force_unwrapping
+  - first_where
+  - modifier_order
+  - empty_count
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - yoda_condition
+
+analyzer_rules:
+  - unused_import
+  - unused_private_declaration
+
+vertical_whitespace:
+  max_empty_lines: 2
+
+function_body_length:
+  - 125 #warning
+  - 200 #error
+
+cyclomatic_complexity:
+  warning: 3 # two nested ifs are acceptable
+  error: 4   # 4 nested ifs shows warning, 5 causes compile error
+
+file_name:
+  excluded:
+    - main.swift
+    - LinuxMain.swift
+
+identifier_name:
+  excluded:
+    - id
+  min_length:
+    error: 4 # only error
+
+type_body_length:
+  - 300 # warning
+  - 400 # error
+
+file_length:
+  - 700 #warning
+
+# reporter type (xcode, json, csv, checkstyle, junit, html, emoji)
+reporter: "json"
+
+custom_rules:
+  force_https:
+    name: "Force HTTPS over HTTP"
+    regex: "((?i)http(?!s))"
+    match_kinds: string
+    message: "HTTPS should be favored over HTTP"
+    severity: warning

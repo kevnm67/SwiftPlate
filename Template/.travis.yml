@@ -20,7 +20,7 @@ branches:
 
 env:
    global:
-     - PROJECT_NAME="{PROJECT}"
+     - PROJECT="{PROJECT}"
      # Add your code climate reporter ID:
      - CC_TEST_REPORTER_ID="FIX_ME"
      # Add your danger API token:
