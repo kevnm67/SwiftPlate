@@ -1,0 +1,165 @@
+# frozen_string_literal: true
+
+opt_out_usage
+default_platform(:ios)
+
+platform :ios do
+  project_base_name = '{PROJECT}'
+  ENV['BUILD_FOLDER'] = File.join('fastlane', 'Build')
+
+  ##############
+  # Before all #
+  ##############
+
+  before_all do
+    setup_ci_if_needed
+    setup_defaults
+  end
+
+  private_lane :setup_ci_if_needed do
+    if ENV['CIRCLECI']
+      setup_circle_ci
+    elsif ENV['TRAVIS']
+      setup_travis
+    else
+      UI.message 'not running in CI... no setup required'
+    end
+  end
+
+  desc 'Setup all required environment keys'
+  desc ''
+  private_lane :setup_defaults do
+    Dotenv.load('.env.local', '.env.development') unless is_ci?
+
+    ENV['IOS_APP_NAME'] = '{PROJECT}'
+    ENV['CACHE_PREFIX'] = '{PROJECT}'
+
+    # Required environment variable naming for Rome plugin.
+    ENV['AWS_ACCESS_KEY_ID'] = ENV['S3_ACCESS_KEY']
+    ENV['AWS_SECRET_ACCESS_KEY'] = ENV['S3_SECRET_ACCESS_KEY']
+    ENV['AWS_REGION'] = 'us-east-1'
+  end
+
+  #########
+  # Tests #
+  #########
+
+  desc 'Runs tests on iOS'
+  lane :test_ios do
+    run_tests_for_device(
+      project_base_name: project_base_name,
+      schemes: [
+        '{PROJECT}-iOS'
+      ],
+      device: 'iPhone 11 Pro'
+    )
+  end
+
+  desc 'Runs tests on macOS'
+  lane :test_macOS do
+    scan(
+      project: '{PROJECT}.xcodeproj',
+      scheme: '{PROJECT}-macOS',
+      clean: true,
+      skip_slack: true
+    )
+    run_tests_for_device(
+      project_base_name: project_base_name,
+      schemes: [
+        '{PROJECT}-macOS'
+      ]
+    )
+  end
+
+  desc 'Runs tests on macOS'
+  lane :test_watchOS do
+    xcodebuild(
+      project: '{PROJECT}.xcodeproj',
+      scheme: '{PROJECT}-watchOS',
+      clean: true,
+      build: true
+    )
+  end
+
+  desc 'Runs tests on tvOS'
+  lane :test_tvOS do
+    run_tests_for_device(
+      project_base_name: project_base_name,
+      schemes: [
+        '{PROJECT}-tvOS'
+      ],
+      device: 'Apple TV 1080p'
+    )
+  end
+
+  #############################
+  ## TESTING & CODE COVERAGE ##
+  #############################
+
+  desc ''
+  desc 'Run tests generating code coverage.'
+  desc 'output_files: optionally provide comma separated list of files.'
+  desc 'device: simulator used for testing'
+  desc ''
+  lane :run_tests_for_device do |options|
+    test_schemes = options[:schemes]
+    project_name = options[:project_base_name] || project_base_name
+    output_files = options[:output_files] || 'xcodebuild-ios.json'
+
+    test_schemes.each do |scheme|
+      scan_and_slather(
+        scheme: scheme,
+        device: options[:device],
+        project_base_name: project_name,
+        output_files: output_files
+      )
+    end
+  end
+
+  desc ''
+  private_lane :scan_and_slather do |options|
+    scheme = options[:scheme]
+    project_name = options[:project_base_name] || project_base_name
+    build_folder = ENV['BUILD_FOLDER']
+
+    scan(
+      scheme: scheme,
+      code_coverage: true,
+      device: options[:device] || 'iPhone 11 Pro',
+      formatter: 'xcpretty-json-formatter',
+      output_types: 'json-compilation-database',
+      output_files: options[:output_files] || 'xcodebuild-ios.json',
+      buildlog_path: "#{build_folder}/logs",
+      slack_only_on_failure: true
+    )
+
+    if is_ci?
+      slather(
+        travis: true,
+        scheme: scheme,
+        cobertura_xml: true,
+        proj: "#{project_name}.xcodeproj",
+        workspace: "#{project_name}.xcworkspace",
+        ignore: coverage_files_to_ignore
+      )
+    elsif
+      slather_local(scheme: scheme)
+    end
+  end
+
+  desc 'Runs slather locally and opens the generated html page.'
+  desc ''
+  private_lane :slather_local do |options|
+    scheme = options[:scheme] || ENV['DEV_SCHEME']
+
+    slather(
+      scheme: scheme,
+      html: true,
+      show: !is_ci,
+      output_directory: ENV['BUILD_FOLDER'],
+      proj: "#{project_base_name}.xcodeproj",
+      workspace: "#{project_base_name}.xcworkspace",
+      ignore: coverage_files_to_ignore
+    )
+  end
+end

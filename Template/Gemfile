@@ -6,3 +6,4 @@ gem 'danger'
 gem 'danger-swiftlint'
 gem 'danger-auto_label'
 gem 'xcpretty-json-formatter'
+gem "fastlane"

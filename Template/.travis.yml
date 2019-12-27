@@ -1,26 +1,31 @@
 os: osx
-osx_image: xcode10.2
-rvm: 2.6.0
+osx_image: xcode11.2
+language: swift
+rvm: 2.6.1
 
 addons:
   homebrew:
-    packages:
-    - swiftlint
+    brewfile: true
     update: true
 
 cache:
   bundler: true
+  cocoapods: true
   directories:
     - $HOME/.rvm/
+
 
 branches:
   only:
     - master
-    - develop
+    - development
+    - /^hotfix.*$/
+    - /^feature.*$/
+    - /^release.*$/
 
 env:
    global:
-     - PROJECT="{PROJECT}"
+     - PROJECT="{PROJECT}.xcodeproj"
      # Add your code climate reporter ID:
      - CC_TEST_REPORTER_ID="FIX_ME"
      # Add your danger API token:
@@ -28,39 +33,36 @@ env:
      - LC_CTYPE=en_US.UTF-8 LANG=en_US.UTF-8
 
 before_install:
-  - gem update --system
-  - gem install bundler
-  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-darwin-amd64 > ./cc-test-reporter
-  - chmod +x ./cc-test-reporter
+  - make setup
+  - chmod a+x ./fastlane/scripts/*.sh
 
 jobs:
   include:
     - &test
       stage: test
-      name: iOS 11.4
-      env: DESTINATION="OS=11.4,name=iPhone X" SDK="$IOS_SDK"
+      name: iOS test (iPhone Pro)
+      env:
+        - LANE="test_iphone_pro"
       before_script:
+        - bundle exec danger
+        - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-darwin-amd64> ./cc-test-reporter
+        - chmod +x ./cc-test-reporter
         - "./cc-test-reporter before-build"
       script:
-        - set -o pipefail
-        - xcodebuild -version -sdk
-        - xcodebuild clean test -project "$PROJECT" -scheme "$SCHEME" -sdk "$SDK" -destination "$DESTINATION" -enableCodeCoverage YES -configuration Debug ONLY_ACTIVE_ARCH=NO CODE_SIGNING_REQUIRED=NO | bundle exec xcpretty -c;
+        - bundle exec fastlane "$LANE"
       after_success:
-        - bundle exec danger
         - "./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT"
 
     - <<: *test
-      name: iOS 12.1
-      env: DESTINATION="OS=12.1,name=iPhone X" SDK="$IOS_SDK"
-
-    - <<: *test
       name: tvOS 12.1
-      env: DESTINATION="OS=12.1,name=Apple TV" SDK="$TVOS_SDK"
+      env:
+        - LANE="test_tvOS"
       if: "(commit_message =~ /(@test tvOS)/)"
 
     - <<: *test
       name: macOS 12.1
-      env: DESTINATION="macOS" SDK="macosx10.14"
+      env:
+        - LANE="test_macOS"
       if: "(commit_message =~ /(@test macOS)/)"
 
     - stage: lint
