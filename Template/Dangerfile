@@ -77,8 +77,3 @@ if github.pr_title.include? "[WIP]"
 else
 	auto_label.remove("WIP")
 end
-
-# Run SwiftLint
-swiftlint.verbose = true
-swiftlint.config_file = './.swiftlint.yml'
-swiftlint.lint_files(inline_mode: true, fail_on_error: true)
